@@ -162,6 +162,43 @@
   /* game */
   .game-wrap{display:grid;grid-template-columns:minmax(0,780px) 1fr;gap:34px;align-items:start}
   @media (max-width:900px){.game-wrap{grid-template-columns:1fr}}
+  .fs-btn{
+    position:absolute;top:10px;left:10px;z-index:30;display:none;
+    padding:6px 12px;font-size:12px;border-radius:999px;cursor:pointer;
+    background:rgba(10,4,16,.7);color:#e9e0f6;border:1px solid rgba(255,255,255,.25);
+  }
+  .touchui{position:absolute;inset:auto 0 0 0;z-index:30;display:none;
+    justify-content:space-between;align-items:flex-end;padding:10px 12px 14px;
+    pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none}
+  .touchui .pad{position:relative;width:168px;height:150px;pointer-events:none}
+  .touchui .acts{display:flex;gap:10px;align-items:flex-end;pointer-events:none}
+  .tbtn{
+    position:absolute;pointer-events:auto;touch-action:none;
+    width:54px;height:54px;border-radius:50%;font-size:18px;line-height:1;
+    color:#fff;background:rgba(20,10,28,.55);border:1px solid rgba(255,255,255,.35);
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  }
+  .tbtn.on{background:rgba(225,29,63,.65);border-color:#ff8fa3}
+  .pad .up{left:55px;top:0}
+  .pad .down{left:55px;top:96px}
+  .pad .left{left:0;top:48px}
+  .pad .right{left:110px;top:48px}
+  .acts .tbtn{position:relative;width:66px;height:66px;font-size:14px;border-radius:50%}
+  .acts .tbtn.small{width:48px;height:48px;font-size:12px}
+  @media (hover:none) and (pointer:coarse){
+    .touchui{display:flex}
+    .fs-btn{display:block}
+    .stage canvas{touch-action:none}
+  }
+  @media (max-width:900px){
+    .fs-btn{display:block}
+    .game-wrap{grid-template-columns:1fr !important}
+    .stage{max-height:none}
+    .canvas-note{display:none}
+  }
+  .stage:fullscreen{display:flex;align-items:center;justify-content:center;
+    background:#000;border-radius:0;border:0;width:100vw;height:100vh;max-height:none;aspect-ratio:auto}
+  .stage:fullscreen canvas{width:auto;height:auto;max-width:100vw;max-height:100vh;aspect-ratio:728/640}
   .stage{position:relative;border-radius:18px;overflow:hidden;border:1px solid rgba(225,29,63,.35);
     box-shadow:0 0 0 1px rgba(0,0,0,.6),0 26px 70px rgba(0,0,0,.6),0 0 60px rgba(225,29,63,.12) inset;
     background:#05030a; aspect-ratio:728/640; max-height:82vh; margin:0 auto; width:100%}
@@ -292,6 +329,20 @@
     <div class="game-wrap">
       <div class="stage">
         <canvas id="gameCanvas" width="728" height="640"></canvas>
+        <button id="fsBtn" class="fs-btn" type="button">⛶ 全屏</button>
+        <div class="touchui" id="touchUI">
+          <div class="pad">
+            <button class="tbtn" data-key="up" type="button">▲</button>
+            <button class="tbtn" data-key="left" type="button">◀</button>
+            <button class="tbtn" data-key="right" type="button">▶</button>
+            <button class="tbtn" data-key="down" type="button">▼</button>
+          </div>
+          <div class="acts">
+            <button class="tbtn shoot" data-key="shoot" type="button">射击</button>
+            <button class="tbtn bomb" data-key="bomb" type="button">符卡</button>
+            <button class="tbtn small" data-key="pause" type="button">暂停</button>
+          </div>
+        </div>
         <div class="overlay" id="ov">
           <div>
             <h3 id="ovTitle">红魔乡 · 一面</h3>
@@ -309,7 +360,7 @@
           <div class="row"><span>放雷</span><kbd>X</kbd> 清屏 + 无敌，保命用</div>
           <div class="row"><span>暂停</span><kbd>Esc</kbd></div>
           <div class="row"><span>静音</span><kbd>M</kbd> 开 / 关 BGM</div>
-          <div class="row"><span>触屏</span>按住拖动＝移动并射击</div>
+          <div class="row"><span>手机</span>用屏幕左下方向键移动，右下「射击 / 符卡 / 暂停」</div>
         </div>
         <div class="tip" style="margin-top:22px">
           <b>提示：</b>自机判定点只有中间那个小红点。看着弹幕缝隙走，别盯着自己的贴图。
@@ -724,6 +775,10 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
 
   function start(){
     reset(); S.mode="title"; S.titleT = 0;
+    if(("ontouchstart" in window) && document.querySelector){
+      var st = document.querySelector(".stage");
+      if(st && st.scrollIntoView) st.scrollIntoView({block:"center", behavior:"smooth"});
+    }
     // 调试用：?nohit 测试 BOSS 流程
     if(location.href.indexOf("nohit") >= 0){ P.lives = 99; P.invuln = 1e9; }
     S.autoDialog = location.href.indexOf("auto=1") >= 0;
@@ -1164,7 +1219,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     if(P.invuln>0) P.invuln--;
 
     // 射击：按住 Z。灵力分 4 段，2 段起两侧阴阳玉发射跟踪弹（伤害很低）
-    const firing = S.canShoot && (keys.shoot || dragging || S.autoFire);
+    const firing = S.canShoot && (keys.shoot || S.autoFire);
     const st = powerStage();
     if(firing && S.frame % 5 === 0){
       const n = st === 1 ? 1 : (st === 2 ? 2 : 3);
@@ -2361,7 +2416,6 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     const r = cvs.getBoundingClientRect();
     return { x:(ev.clientX-r.left)/r.width*CW, y:(ev.clientY-r.top)/r.height*H };
   }
-  let dragging=false;
   cvs.addEventListener("pointerdown", ev=>{
     initAudio();
     if(S.mode === "menu"){
@@ -2377,20 +2431,44 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     }
     if(S.mode === "dialog"){ dlgAdvance(); return; }
     if(S.mode!=="play"){ return; }
-    dragging = true;
-    const p = toLocal(ev);
-    P.x = clamp(p.x, 14, W-14);
-    P.y = clamp(p.y-40, 46, H-18);
-    cvs.setPointerCapture(ev.pointerId);
   });
-  cvs.addEventListener("pointermove", ev=>{
-    if(!dragging || S.mode!=="play") return;
-    const p = toLocal(ev);
-    P.x = clamp(p.x, 14, W-14);
-    P.y = clamp(p.y-40, 46, H-18);
-  });
-  cvs.addEventListener("pointerup", ()=>{ dragging=false; });
-  cvs.addEventListener("pointercancel", ()=>{ dragging=false; });
+
+  /* ---------- 触屏按钮 / 全屏 ---------- */
+  (function wireTouch(){
+    document.querySelectorAll(".tbtn").forEach(function(btn){
+      const k = btn.dataset.key;
+      const press = function(e){
+        e.preventDefault(); e.stopPropagation();
+        initAudio();
+        if(k === "pause"){
+          if(S.mode === "play" || S.mode === "pause") togglePause();
+        } else {
+          keys[k] = true;
+        }
+        btn.classList.add("on");
+      };
+      const release = function(e){
+        if(e) e.preventDefault();
+        if(k !== "pause") keys[k] = false;
+        btn.classList.remove("on");
+      };
+      btn.addEventListener("pointerdown", press);
+      btn.addEventListener("pointerup", release);
+      btn.addEventListener("pointercancel", release);
+      btn.addEventListener("pointerleave", release);
+      btn.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+    });
+
+    const fsBtn = document.getElementById("fsBtn");
+    const stage = document.querySelector ? document.querySelector(".stage") : null;
+    if(fsBtn && stage && fsBtn.addEventListener){
+      fsBtn.addEventListener("click", function(e){
+        e.preventDefault();
+        if(document.fullscreenElement) document.exitFullscreen();
+        else if(stage.requestFullscreen) stage.requestFullscreen();
+      });
+    }
+  })();
 
   /* ---------- 主界面（画布内） ---------- */
   const MENU = { panel:"main", idx:0, hits:[], spell:0 };
