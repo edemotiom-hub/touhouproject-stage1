@@ -2652,6 +2652,10 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       ev.preventDefault();
       TOUCH.pid = ev.pointerId;
       TOUCH.sx = ev.clientX; TOUCH.sy = ev.clientY;
+      if(TOUCH.mode === 2){
+        keys.left = keys.right = keys.up = keys.down = false;
+        keys.focus = false;
+      }
       if(TOUCH.mode === 1){
         const sx = Math.min(Math.max(ev.clientX, 76), (window.innerWidth || 360) - 76);
         const sy = Math.min(Math.max(ev.clientY, 76), (window.innerHeight || 640) - 76);
@@ -2666,18 +2670,25 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       if(TOUCH.mode === 1){
         stickMoveTo(ev.clientX, ev.clientY);
       } else if(TOUCH.mode === 2){
-        const p = mapPoint(ev.clientX, ev.clientY);
-        const dx = (ev.clientX - TOUCH.sx) / p.r.width  * CW * 0.9;
-        const dy = (ev.clientY - TOUCH.sy) / p.r.height * H  * 0.9;
-        P.x = clamp(P.x + dx, 14, W - 14);
-        P.y = clamp(P.y + dy, 46, H - 18);
-        TOUCH.sx = ev.clientX; TOUCH.sy = ev.clientY;
+        // 方向式：位移只决定"往哪走"，速度与键盘/摇杆一致
+        const dx = ev.clientX - TOUCH.sx;
+        const dy = ev.clientY - TOUCH.sy;
+        keys.left  = dx < -DEAD;
+        keys.right = dx >  DEAD;
+        keys.up    = dy < -DEAD;
+        keys.down  = dy >  DEAD;
+        const mag = Math.hypot(dx, dy);
+        keys.focus = (mag > DEAD && mag < 58);   // 轻滑 = 慢速
       }
     }
     function canvasUp(ev){
       if(TOUCH.pid === null || (ev && ev.pointerId !== TOUCH.pid)) return;
       TOUCH.pid = null;
       if(TOUCH.mode === 1){ resetStickPos("0.35"); stickRelease(); }
+      else if(TOUCH.mode === 2){
+        keys.left = keys.right = keys.up = keys.down = false;
+        keys.focus = false;
+      }
     }
     document.addEventListener("pointerdown", canvasDown, {passive:false});
     document.addEventListener("pointermove", canvasMove, {passive:false});
