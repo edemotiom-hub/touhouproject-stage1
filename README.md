@@ -2,6 +2,6 @@
 
 在线玩：https://edemotiom-hub.github.io/touhouproject-stage1/
 
-浏览器直接打开 index.html 即可游玩；本仓库用于 GitHub Pages 发布。
-
-操作：方向键/WASD 移动，Z 射击，Shift 低速，X 放符卡，Esc 暂停，M 静音。
+- 电脑：方向键/WASD 移动，Z 射击，Shift 低速，X 符卡，Esc 暂停，M 静音
+- 手机：设置里可选 固定摇杆 / 浮动摇杆 / 边缘滑动；轻推摇杆=低速
+- 网页版音频拆分为独立文件（首屏 <1MB），离线单文件版见压缩包
