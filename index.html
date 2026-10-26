@@ -910,24 +910,22 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
   }
 
   /* ---------- 敌人 ---------- */
-  // 基础直线妖精 / 扇形散弹妖精 / 旋转环形妖精（精英）
-  function spawnFairy(kind, x0, t0){
+  // 基础妖精（红）/ 大妖精（精英，黄）
+  function spawnFairy(kind, x0, t0, opts){
     const x = (x0 === undefined) ? rand(50, W-50) : x0;
     const t = t0 || 0;
     const phase = rand(0, TAU);
-    if(kind === "ring"){
-      enemies.push({kind:"ring", x, y:-24, hp:30, maxhp:30, t:t, phase:phase,
-                    vy:1.7, amp:0, freq:.02, stopY:150});
-    } else if(kind === "spread"){
-      enemies.push({kind:"spread", x, y:-22, hp:13, maxhp:13, t:t, phase:phase,
-                    vy:1.05, amp:20, freq:.028});
+    const o = opts || {};
+    if(kind === "big"){
+      enemies.push({kind:"big", x, y:-30, hp:40, maxhp:40, t:t, phase:phase,
+                    vy:1.0, amp:0, freq:0, vx:0, stopY:150, rings:0});
     } else {
       enemies.push({kind:"fairy", x, y:-20, hp:9, maxhp:9, t:t, phase:phase,
-                    vy:1.35, amp:22, freq:.03});
+                    vy:1.35, amp:22, freq:.03, vx: o.vx || 0});
     }
   }
 
-  // 原作一面式固定编队（V 字、斜线、扇形、精英）
+  // 原作一面式固定编队
   function spawnFormation(kind, cx){
     if(kind === "v3"){
       spawnFairy("fairy", cx - 46, -20);
@@ -940,23 +938,24 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       spawnFairy("fairy", cx + 46, -20);
       spawnFairy("fairy", cx + 92, -40);
     } else if(kind === "line4"){
-      for(let i=0;i<4;i++) spawnFairy("fairy", cx - 81 + i*54, -i*24);
-    } else if(kind === "spread2"){
-      spawnFairy("spread", cx - 60, -18);
-      spawnFairy("spread", cx + 60, 0);
-    } else if(kind === "ring"){
-      spawnFairy("ring", cx);
+      for(let i=0;i<4;i++) spawnFairy("fairy", cx - 81 + i*54, -i*22);
+    } else if(kind === "sideL"){
+      for(let i=0;i<3;i++) spawnFairy("fairy", -24, -70 - i*38, 0, {vx:1.5});
+    } else if(kind === "sideR"){
+      for(let i=0;i<3;i++) spawnFairy("fairy", W + 24, -70 - i*38, 0, {vx:-1.5});
+    } else if(kind === "big"){
+      spawnFairy("big", cx);
     }
   }
 
   // 固定波次表：cx 是相对画布宽度的位置
   const WAVE_PLAN = [
-    { f:"v3",      cx:0.30 },
-    { f:"line4",   cx:0.75 },
-    { f:"v5",      cx:0.50 },
-    { f:"spread2", cx:0.34 },
-    { f:"line4",   cx:0.22 },
-    { f:"ring",    cx:0.62 }
+    { f:"v3",     cx:0.30 },
+    { f:"line4",  cx:0.78 },
+    { f:"sideL",  cx:0 },
+    { f:"v5",     cx:0.50 },
+    { f:"sideR",  cx:0 },
+    { f:"big",    cx:0.62 }
   ];
 
   // 道中流程：小怪 → 清空弹幕 → 中 BOSS 从上降下 → 对话 → 打退 → 小怪 → 清空 → BOSS 降下 → 对话 → 决战
@@ -1532,37 +1531,31 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     for(let i=enemies.length-1;i>=0;i--){
       const e=enemies[i]; e.t++;
       if(e.hitFlash > 0) e.hitFlash--;
-      // 精英环形妖精：下降到固定高度后停下
-      if(e.kind === "ring" && e.stopY && e.y >= e.stopY){ e.vy = 0; e.stopY = 0; }
-      e.y += e.vy;
-      if(e.amp) e.x += Math.sin(e.t*e.freq+e.phase)*1.1;
-      e.x = clamp(e.x, 16, W-16);
+      // 大妖精（精英）：降到固定高度停下，放两圈环弹再继续下降
+      if(e.kind === "big" && e.stopY && e.y >= e.stopY){ e.vy = 0; e.stopY = 0; }
+      if(e.kind === "big" && e.vy === 0 && !e.stopY && e.rings < 2){
+        if(e.t % 100 === 0){
+          ring(e.x, e.y, 16, 1.7, e.rings === 0 ? "small_blue" : "rice", e.t * 0.05);
+          e.rings++;
+        }
+      }
+      if(e.kind === "big" && e.vy === 0 && e.rings >= 2){ e.vy = 1.0; }
 
-      // ① 基础直线妖精：单发 / 三发自机狙，慢速，间隔长
-      if(e.kind === "fairy" && e.t > 0 && e.t % 110 === 0){
-        if(Math.floor(e.t/110) % 2 === 0) aimed(e.x, e.y, 2.0, "small");
-        else aimedFan(e.x, e.y, 3, 2.0, "small_blue", 0.12);
-      }
-      // ② 扇形散弹妖精：5 / 7 发扇形，红蓝为主
-      if(e.kind === "spread" && e.t > 0 && e.t % 90 === 0){
-        const n = (Math.floor(e.t/90) % 2 === 0) ? 5 : 7;
-        aimedFan(e.x, e.y, n, 1.9, "small", 0.14);
-        aimedFan(e.x, e.y, n, 1.5, "small_blue", 0.10);
-      }
-      // ③ 旋转环形妖精：12 / 16 发环，带自转
-      if(e.kind === "ring" && e.vy === 0 && e.t % 110 === 0){
-        const wave = Math.floor(e.t/110);
-        const n = (wave % 2 === 0) ? 12 : 16;
-        ring(e.x, e.y, n, 1.7, wave % 3 === 2 ? "small_blue" : "rice", wave * 0.18);
-      }
-      if(e.y>H+30 || e.hp<=0){
+      e.y += e.vy;
+      e.x += e.vx || 0;
+      if(e.amp) e.x += Math.sin(e.t*e.freq+e.phase)*1.1;
+      e.x = clamp(e.x, -40, W + 40);
+
+      // 基础妖精：单发自机狙，慢速，间隔长
+      if(e.kind === "fairy" && e.t > 0 && e.t % 95 === 0) aimed(e.x, e.y, 2.0, "small");
+      if(e.y>H+30 || e.x<-60 || e.x>W+60 || e.hp<=0){
         if(e.hp<=0){
-          const pts = e.kind==="ring" ? 600 : (e.kind==="spread" ? 220 : 120);
+          const pts = e.kind==="big" ? 600 : 120;
           S.score += pts;
-          if(e.kind === "ring") items.push({x:e.x,y:e.y,vy:1.5,kind:"P",big:true});
+          if(e.kind === "big") items.push({x:e.x,y:e.y,vy:1.5,kind:"P",big:true});
           else if(Math.random() < 0.28) items.push({x:e.x,y:e.y,vy:1.6,kind:"P"});
           if(Math.random()<.5) items.push({x:e.x+rand(-10,10),y:e.y,vy:1.9,kind:"pt"});
-          addFx(e.x, e.y, e.kind==="ring"?1.6:0.9);
+          addFx(e.x, e.y, e.kind==="big"?1.6:0.9);
           addPopup(e.x, e.y - 16, "+" + pts, "#ffe9c0");
           for(let k=0;k<10;k++) particles.push({x:e.x,y:e.y,vx:rand(-3,3),vy:rand(-3,3),life:20,color:"#ffffff"});
         }
@@ -1669,7 +1662,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       }
       if(!hit){
         for(const e of enemies){
-          const er = e.kind==="ring" ? 26 : (e.kind==="spread" ? 20 : 18);
+          const er = e.kind==="big" ? 26 : 18;
           if(Math.hypot(s.x-e.x, s.y-e.y) < er){ e.hp -= s.dmg; e.hitFlash = 3; sfx("damage", 0.09, 45); hit=true; break; }
         }
       }
@@ -1809,7 +1802,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     ctx.fill();
   }
 
-  const FAIRY_SPR = { fairy:"fairy_blue", swoop:"fairy_red", big:"fairy_yellow" };
+  const FAIRY_SPR = { fairy:"fairy_red", big:"fairy_yellow" };
   function drawFairy(e){
     const key = FAIRY_SPR[e.kind] || "fairy_blue";
     const size = e.kind === "big" ? 54 : 40;
