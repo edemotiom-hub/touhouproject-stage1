@@ -185,7 +185,7 @@
   .touchui{position:absolute;inset:auto 0 0 0;z-index:30;display:none;
     justify-content:space-between;align-items:flex-end;padding:10px 12px 14px;
     pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none}
-  .touchui .acts{display:flex;gap:10px;align-items:flex-end;pointer-events:none}
+  .touchui .acts{display:flex;gap:10px;align-items:flex-end;pointer-events:none;margin-left:auto}
   .tbtn{
     position:absolute;pointer-events:auto;touch-action:none;
     width:54px;height:54px;border-radius:50%;font-size:18px;line-height:1;
@@ -927,22 +927,37 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     }
   }
 
-  // 编队：偶尔精英环形妖精，其次扇形，其余基础三连
-  function spawnWave(n){
-    const cx = rand(120, W-120);
-    const r = Math.random();
-    if(r < 0.12){
-      spawnFairy("ring", clamp(cx, 90, W-90));
-    } else if(r < 0.45){
-      spawnFairy("spread", cx);
-    } else {
+  // 原作一面式固定编队（V 字、斜线、扇形、精英）
+  function spawnFormation(kind, cx){
+    if(kind === "v3"){
+      spawnFairy("fairy", cx - 46, -20);
       spawnFairy("fairy", cx, 0);
-      if(n >= 2){
-        spawnFairy("fairy", cx - 58, -22);
-        spawnFairy("fairy", cx + 58, -44);
-      }
+      spawnFairy("fairy", cx + 46, -20);
+    } else if(kind === "v5"){
+      spawnFairy("fairy", cx - 92, -40);
+      spawnFairy("fairy", cx - 46, -20);
+      spawnFairy("fairy", cx, 0);
+      spawnFairy("fairy", cx + 46, -20);
+      spawnFairy("fairy", cx + 92, -40);
+    } else if(kind === "line4"){
+      for(let i=0;i<4;i++) spawnFairy("fairy", cx - 81 + i*54, -i*24);
+    } else if(kind === "spread2"){
+      spawnFairy("spread", cx - 60, -18);
+      spawnFairy("spread", cx + 60, 0);
+    } else if(kind === "ring"){
+      spawnFairy("ring", cx);
     }
   }
+
+  // 固定波次表：cx 是相对画布宽度的位置
+  const WAVE_PLAN = [
+    { f:"v3",      cx:0.30 },
+    { f:"line4",   cx:0.75 },
+    { f:"v5",      cx:0.50 },
+    { f:"spread2", cx:0.34 },
+    { f:"line4",   cx:0.22 },
+    { f:"ring",    cx:0.62 }
+  ];
 
   // 道中流程：小怪 → 清空弹幕 → 中 BOSS 从上降下 → 对话 → 打退 → 小怪 → 清空 → BOSS 降下 → 对话 → 决战
   function stageUpdate(){
@@ -950,8 +965,10 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     stage.t++;
     if(stage.phase === "wave1"){
       if(stage.t < STAGE_WAVE1){
-        if(stage.t % 50 === 0) spawnWave(1);
-        if(stage.t % 300 === 0) spawnFairy("big");
+        if(stage.t % 84 === 0){
+          const k = Math.floor(stage.t / 84) % WAVE_PLAN.length;
+          spawnFormation(WAVE_PLAN[k].f, W * WAVE_PLAN[k].cx);
+        }
       } else if(enemies.length === 0 && bullets.length === 0){
         stage.phase = "mid_enter";
         S.canShoot = false;          // BOSS 登场到对话结束前不能射击
@@ -959,8 +976,10 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       }
     } else if(stage.phase === "wave2"){
       if(stage.t < STAGE_WAVE2){
-        if(stage.t % 42 === 0) spawnWave(2);
-        if(stage.t % 240 === 0) spawnFairy("big");
+        if(stage.t % 72 === 0){
+          const k = Math.floor(stage.t / 72) % WAVE_PLAN.length;
+          spawnFormation(WAVE_PLAN[k].f, W * WAVE_PLAN[k].cx);
+        }
       } else if(enemies.length === 0 && bullets.length === 0){
         stage.phase = "boss_enter";
         S.canShoot = false;
@@ -1540,7 +1559,8 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
         if(e.hp<=0){
           const pts = e.kind==="ring" ? 600 : (e.kind==="spread" ? 220 : 120);
           S.score += pts;
-          if(Math.random()<(e.kind==="ring"?0.95:0.28)) items.push({x:e.x,y:e.y,vy:1.6,kind:"P"});
+          if(e.kind === "ring") items.push({x:e.x,y:e.y,vy:1.5,kind:"P",big:true});
+          else if(Math.random() < 0.28) items.push({x:e.x,y:e.y,vy:1.6,kind:"P"});
           if(Math.random()<.5) items.push({x:e.x+rand(-10,10),y:e.y,vy:1.9,kind:"pt"});
           addFx(e.x, e.y, e.kind==="ring"?1.6:0.9);
           addPopup(e.x, e.y - 16, "+" + pts, "#ffe9c0");
@@ -1668,13 +1688,13 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       if(Math.hypot(it.x-P.x, it.y-P.y) < 20){
         if(it.kind==="P"){
           const beforeStage = powerStage();
-          P.power = Math.min(MAX_POWER, P.power + 0.25);
+          P.power = Math.min(MAX_POWER, P.power + (it.big ? 1.0 : 0.25));
           if(powerStage() > beforeStage){
             sfx("powerup", 0.65);
             addPopup(P.x, P.y - 46, "POWER UP", "#8be0ff");
           }
-          S.score += 50;
-          addPopup(it.x, it.y - 10, "+灵力", "#ff9fd0");
+          S.score += it.big ? 200 : 50;
+          addPopup(it.x, it.y - 10, it.big ? "大P +1.0" : "+灵力", it.big ? "#ffd166" : "#ff9fd0");
           sfx("item", 0.25, 40);
         }
         else { S.score += 100; S.points++; sfx("item", 0.25, 40); }
@@ -2620,18 +2640,23 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       stick.addEventListener("contextmenu", function(e){ e.preventDefault(); });
     }
 
-    // 模式 1/2：在画布左半屏操作
+    // 模式 1/2：在左半屏操作（全屏时画布外的黑边也算）
+    function mapPoint(clientX, clientY){
+      const r = cvs.getBoundingClientRect();
+      return { x: (clientX - r.left) / r.width * CW, y: (clientY - r.top) / r.height * H, r: r };
+    }
     function canvasDown(ev){
-      if(S.mode !== "play" || TOUCH.mode === 0) return;
-      const p = toLocal(ev);
+      if(S.mode !== "play" || TOUCH.mode === 0 || TOUCH.pid !== null) return;
+      const p = mapPoint(ev.clientX, ev.clientY);
       if(p.x > W * 0.55) return;                 // 只有左半屏能移动
       ev.preventDefault();
       TOUCH.pid = ev.pointerId;
       TOUCH.sx = ev.clientX; TOUCH.sy = ev.clientY;
-      try { cvs.setPointerCapture(ev.pointerId); } catch(e){}
       if(TOUCH.mode === 1){
-        setStickPos(ev.clientX, ev.clientY);
-        TOUCH.cx = ev.clientX; TOUCH.cy = ev.clientY;
+        const sx = Math.min(Math.max(ev.clientX, 76), (window.innerWidth || 360) - 76);
+        const sy = Math.min(Math.max(ev.clientY, 76), (window.innerHeight || 640) - 76);
+        setStickPos(sx, sy);
+        TOUCH.cx = sx; TOUCH.cy = sy;
         active = true;
         stickMoveTo(ev.clientX, ev.clientY);
       }
@@ -2641,9 +2666,9 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       if(TOUCH.mode === 1){
         stickMoveTo(ev.clientX, ev.clientY);
       } else if(TOUCH.mode === 2){
-        const r = cvs.getBoundingClientRect();
-        const dx = (ev.clientX - TOUCH.sx) / r.width  * CW * 1.5;
-        const dy = (ev.clientY - TOUCH.sy) / r.height * H  * 1.5;
+        const p = mapPoint(ev.clientX, ev.clientY);
+        const dx = (ev.clientX - TOUCH.sx) / p.r.width  * CW * 0.9;
+        const dy = (ev.clientY - TOUCH.sy) / p.r.height * H  * 0.9;
         P.x = clamp(P.x + dx, 14, W - 14);
         P.y = clamp(P.y + dy, 46, H - 18);
         TOUCH.sx = ev.clientX; TOUCH.sy = ev.clientY;
@@ -2654,10 +2679,10 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       TOUCH.pid = null;
       if(TOUCH.mode === 1){ resetStickPos("0.35"); stickRelease(); }
     }
-    cvs.addEventListener("pointerdown", canvasDown);
-    cvs.addEventListener("pointermove", canvasMove);
-    cvs.addEventListener("pointerup", canvasUp);
-    cvs.addEventListener("pointercancel", canvasUp);
+    document.addEventListener("pointerdown", canvasDown, {passive:false});
+    document.addEventListener("pointermove", canvasMove, {passive:false});
+    document.addEventListener("pointerup", canvasUp);
+    document.addEventListener("pointercancel", canvasUp);
 
     // 切换模式时的显隐
     window.__touchApply = function(mode){
