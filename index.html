@@ -2593,9 +2593,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       keys.right = dx >  DEAD;
       keys.up    = dy < -DEAD;
       keys.down  = dy >  DEAD;
-      // 轻推 = 慢速（自机变慢 + 显示判定点）
-      const mag = Math.hypot(dx, dy) / MAXR;
-      keys.focus = (mag > 0.08 && mag < 0.55);
+      keys.focus = false;   // 摇杆不再自带减速，慢速用右下按钮
     }
     function stickRelease(){
       active = false;
@@ -2670,8 +2668,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
         keys.right = dx >  DEAD;
         keys.up    = dy < -DEAD;
         keys.down  = dy >  DEAD;
-        const mag = Math.hypot(dx, dy);
-        keys.focus = (mag > DEAD && mag < 58);   // 轻滑 = 慢速
+        keys.focus = false;   // 轻滑不再减速，慢速用右下按钮
       }
     }
     function canvasUp(ev){
