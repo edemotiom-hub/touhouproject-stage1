@@ -582,7 +582,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
   let bullets=[], shots=[], enemies=[], items=[], particles=[], boss=null, spellBanner=0, bossWarn=0, fx=[];
   let banner=null, popups=[], barrier=null, spellCut=null, beams=[], bombFx=null, orbs=[];
   let stage = null;
-  const STAGE_WAVE1 = 2400, STAGE_WAVE2 = 1800;
+  const STAGE_WAVE1 = 2650, STAGE_WAVE2 = 1700;
   const MAX_BOMBS = 2;
   const MAX_POWER = 8;            // 灵力上限（原作 128 档的简化）
   function powerStage(){
@@ -691,7 +691,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     shots.push({ x, y, vx: side * 0.8, vy: -6.2 - idx * 0.2,
                  dmg: 0.5, r: 3, homing: true, t: 0 });
   }
-  function initStage(){ stage = { phase:"intro", t:0 }; }
+  function initStage(){ stage = { phase:"intro", t:0, si:0 }; }
   const stars = Array.from({length:90},()=>({x:rand(0,W), y:rand(0,H), z:rand(.25,1)}));
 
   // 原作拆包素材（由 index.html 里的 ASSET_DATA 注入）
@@ -909,53 +909,105 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     }
   }
 
-  /* ---------- 敌人 ---------- */
-  // 基础妖精（红）/ 大妖精（精英，黄）
+  /* ---------- 敌人（Lunatic 强度） ---------- */
+  // fairy 红：普通妖精，三发自机狙
+  // stop  蓝：下降到固定高度停下，打两轮环弹再离开
+  // big   黄：大妖精（精英），三圈大环弹，必爆大 P
   function spawnFairy(kind, x0, t0, opts){
     const x = (x0 === undefined) ? rand(50, W-50) : x0;
     const t = t0 || 0;
     const phase = rand(0, TAU);
     const o = opts || {};
     if(kind === "big"){
-      enemies.push({kind:"big", x, y:-30, hp:40, maxhp:40, t:t, phase:phase,
-                    vy:1.0, amp:0, freq:0, vx:0, stopY:150, rings:0});
+      enemies.push({kind:"big", x, y:-30, hp:70, maxhp:70, t:t, phase:phase,
+                    vy:1.0, amp:0, freq:0, vx:0, stopY:150, volleys:0, stopped:false});
+    } else if(kind === "stop"){
+      enemies.push({kind:"stop", x, y:-24, hp:16, maxhp:16, t:t, phase:phase,
+                    vy:1.5, amp:16, freq:.03, vx:0, stopY:170, volleys:0, stopped:false});
     } else {
-      enemies.push({kind:"fairy", x, y:-20, hp:9, maxhp:9, t:t, phase:phase,
-                    vy:1.35, amp:22, freq:.03, vx: o.vx || 0});
+      enemies.push({kind:"fairy", x, y:-20, hp:12, maxhp:12, t:t, phase:phase,
+                    vy:1.6, amp:22, freq:.03, vx: o.vx || 0});
     }
   }
 
-  // 原作一面式固定编队
+  // 编队
   function spawnFormation(kind, cx){
-    if(kind === "v3"){
-      spawnFairy("fairy", cx - 46, -20);
-      spawnFairy("fairy", cx, 0);
-      spawnFairy("fairy", cx + 46, -20);
-    } else if(kind === "v5"){
-      spawnFairy("fairy", cx - 92, -40);
-      spawnFairy("fairy", cx - 46, -20);
-      spawnFairy("fairy", cx, 0);
-      spawnFairy("fairy", cx + 46, -20);
-      spawnFairy("fairy", cx + 92, -40);
-    } else if(kind === "line4"){
-      for(let i=0;i<4;i++) spawnFairy("fairy", cx - 81 + i*54, -i*22);
-    } else if(kind === "sideL"){
-      for(let i=0;i<3;i++) spawnFairy("fairy", -24, -70 - i*38, 0, {vx:1.5});
-    } else if(kind === "sideR"){
-      for(let i=0;i<3;i++) spawnFairy("fairy", W + 24, -70 - i*38, 0, {vx:-1.5});
+    if(kind === "row3"){
+      spawnFairy("fairy", cx - 80, -20);
+      spawnFairy("fairy", cx,       0);
+      spawnFairy("fairy", cx + 80, -20);
+    } else if(kind === "row5"){
+      for(let i=0;i<5;i++){
+        const k = i - 2;
+        spawnFairy("fairy", cx + k*62, -Math.abs(k)*16);
+      }
+    } else if(kind === "vee5"){
+      const seq = [-2,2,-1,1,0];
+      for(const k of seq) spawnFairy("fairy", cx + k*58, -Math.abs(k)*30);
+    } else if(kind === "sweepL"){
+      for(let i=0;i<4;i++) spawnFairy("fairy", -26, -60 - i*34, 0, {vx:1.7});
+    } else if(kind === "sweepR"){
+      for(let i=0;i<4;i++) spawnFairy("fairy", W + 26, -60 - i*34, 0, {vx:-1.7});
+    } else if(kind === "stop3"){
+      spawnFairy("stop", cx - 90, -18);
+      spawnFairy("stop", cx,       0);
+      spawnFairy("stop", cx + 90, -18);
     } else if(kind === "big"){
       spawnFairy("big", cx);
     }
   }
 
-  // 固定波次表：cx 是相对画布宽度的位置
-  const WAVE_PLAN = [
-    { f:"v3",     cx:0.30 },
-    { f:"line4",  cx:0.78 },
-    { f:"sideL",  cx:0 },
-    { f:"v5",     cx:0.50 },
-    { f:"sideR",  cx:0 },
-    { f:"big",    cx:0.62 }
+  // Lunatic 道中时间轴（帧 → 编队）
+  const STAGE_SCRIPT = [
+    { t:  50, f:"row3",   x:0.30 },
+    { t: 120, f:"row3",   x:0.70 },
+    { t: 200, f:"vee5",   x:0.50 },
+    { t: 300, f:"sweepL", x:0    },
+    { t: 340, f:"sweepR", x:0    },
+    { t: 440, f:"stop3",  x:0.50 },
+    { t: 560, f:"row5",   x:0.50 },
+    { t: 660, f:"big",    x:0.28 },
+    { t: 720, f:"row3",   x:0.72 },
+    { t: 820, f:"sweepL", x:0    },
+    { t: 860, f:"sweepR", x:0    },
+    { t: 960, f:"vee5",   x:0.40 },
+    { t:1060, f:"stop3",  x:0.42 },
+    { t:1180, f:"big",    x:0.72 },
+    { t:1240, f:"row5",   x:0.58 },
+    { t:1350, f:"sweepL", x:0    },
+    { t:1390, f:"sweepR", x:0    },
+    { t:1500, f:"stop3",  x:0.55 },
+    { t:1630, f:"vee5",   x:0.30 },
+    { t:1730, f:"row3",   x:0.75 },
+    { t:1830, f:"big",    x:0.50 },
+    { t:1900, f:"sweepL", x:0    },
+    { t:1940, f:"sweepR", x:0    },
+    { t:2050, f:"row5",   x:0.45 },
+    { t:2170, f:"stop3",  x:0.65 },
+    { t:2300, f:"vee5",   x:0.55 },
+    { t:2420, f:"big",    x:0.38 },
+    { t:2500, f:"row5",   x:0.62 }
+  ];
+
+  const STAGE_SCRIPT2 = [
+    { t:  40, f:"sweepL", x:0    },
+    { t:  70, f:"sweepR", x:0    },
+    { t: 160, f:"vee5",   x:0.35 },
+    { t: 250, f:"stop3",  x:0.62 },
+    { t: 370, f:"big",    x:0.30 },
+    { t: 430, f:"row5",   x:0.55 },
+    { t: 540, f:"sweepL", x:0    },
+    { t: 580, f:"sweepR", x:0    },
+    { t: 690, f:"stop3",  x:0.45 },
+    { t: 810, f:"big",    x:0.72 },
+    { t: 870, f:"vee5",   x:0.60 },
+    { t: 990, f:"row5",   x:0.40 },
+    { t:1110, f:"sweepL", x:0    },
+    { t:1150, f:"sweepR", x:0    },
+    { t:1270, f:"stop3",  x:0.50 },
+    { t:1410, f:"big",    x:0.50 },
+    { t:1480, f:"vee5",   x:0.30 },
+    { t:1570, f:"row5",   x:0.70 }
   ];
 
   // 道中流程：小怪 → 清空弹幕 → 中 BOSS 从上降下 → 对话 → 打退 → 小怪 → 清空 → BOSS 降下 → 对话 → 决战
@@ -963,29 +1015,30 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     if(!stage) return;
     stage.t++;
     if(stage.phase === "wave1"){
-      if(stage.t < STAGE_WAVE1){
-        if(stage.t % 84 === 0){
-          const k = Math.floor(stage.t / 84) % WAVE_PLAN.length;
-          spawnFormation(WAVE_PLAN[k].f, W * WAVE_PLAN[k].cx);
-        }
-      } else if(enemies.length === 0 && bullets.length === 0){
+      const script = STAGE_SCRIPT;
+      while(stage.si < script.length && stage.t >= script[stage.si].t){
+        const en = script[stage.si++];
+        spawnFormation(en.f, W * en.x);
+      }
+      if(stage.t >= STAGE_WAVE1 && enemies.length === 0 && bullets.length === 0){
         stage.phase = "mid_enter";
         S.canShoot = false;          // BOSS 登场到对话结束前不能射击
         spawnMidboss();
       }
     } else if(stage.phase === "wave2"){
-      if(stage.t < STAGE_WAVE2){
-        if(stage.t % 72 === 0){
-          const k = Math.floor(stage.t / 72) % WAVE_PLAN.length;
-          spawnFormation(WAVE_PLAN[k].f, W * WAVE_PLAN[k].cx);
-        }
-      } else if(enemies.length === 0 && bullets.length === 0){
+      const script = STAGE_SCRIPT2;
+      while(stage.si < script.length && stage.t >= script[stage.si].t){
+        const en = script[stage.si++];
+        spawnFormation(en.f, W * en.x);
+      }
+      if(stage.t >= STAGE_WAVE2 && enemies.length === 0 && bullets.length === 0){
         stage.phase = "boss_enter";
         S.canShoot = false;
         spawnBoss();
       }
     }
   }
+
 
   function spawnMidboss(){
     boss = { x:W/2, y:-120, hp:900, maxhp:900, t:0, phase:0, mid:true,
@@ -1369,7 +1422,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       if(S.shake>0) S.shake--;
       if(S.titleT > 128){
         S.mode = "play";
-        if(stage){ stage.phase = "wave1"; stage.t = 0; }
+        if(stage){ stage.phase = "wave1"; stage.t = 0; stage.si = 0; }
         playBgm("bgm_stage");
       }
       return;
@@ -1531,26 +1584,37 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     for(let i=enemies.length-1;i>=0;i--){
       const e=enemies[i]; e.t++;
       if(e.hitFlash > 0) e.hitFlash--;
-      // 大妖精（精英）：降到固定高度停下，放两圈环弹再继续下降
-      if(e.kind === "big" && e.stopY && e.y >= e.stopY){ e.vy = 0; e.stopY = 0; }
-      if(e.kind === "big" && e.vy === 0 && !e.stopY && e.rings < 2){
-        if(e.t % 100 === 0){
-          ring(e.x, e.y, 16, 1.7, e.rings === 0 ? "small_blue" : "rice", e.t * 0.05);
-          e.rings++;
+      // 停驻：降到指定高度 → 停下来打环弹 → 打完离开
+      if(e.stopY && e.y >= e.stopY){ e.vy = 0; e.stopY = 0; e.stopped = true; }
+      if(e.stopped){
+        const isBig = e.kind === "big";
+        const maxV = isBig ? 3 : 2;
+        const gap  = isBig ? 95 : 65;
+        if(e.volleys < maxV && e.t % gap === 0){
+          const a = Math.atan2(P.y - e.y, P.x - e.x);
+          const n = isBig ? 20 : 8;
+          const sp = isBig ? 1.9 : 2.2;
+          const col = isBig
+            ? (e.volleys === 0 ? "small_blue" : (e.volleys === 1 ? "rice" : "small"))
+            : "small_blue";
+          ring(e.x, e.y, n, sp, col, a + e.volleys * 0.35);
+          e.volleys++;
         }
+        if(e.volleys >= maxV) e.vy = 1.2;
       }
-      if(e.kind === "big" && e.vy === 0 && e.rings >= 2){ e.vy = 1.0; }
 
       e.y += e.vy;
       e.x += e.vx || 0;
       if(e.amp) e.x += Math.sin(e.t*e.freq+e.phase)*1.1;
       e.x = clamp(e.x, -40, W + 40);
 
-      // 基础妖精：单发自机狙，慢速，间隔长
-      if(e.kind === "fairy" && e.t > 0 && e.t % 95 === 0) aimed(e.x, e.y, 2.0, "small");
+      // 基础妖精：三发自机狙（Lunatic）
+      if(e.kind === "fairy" && e.t > 0 && e.t % 70 === 0){
+        aimedFan(e.x, e.y, 3, 2.6, "small", 0.16);
+      }
       if(e.y>H+30 || e.x<-60 || e.x>W+60 || e.hp<=0){
         if(e.hp<=0){
-          const pts = e.kind==="big" ? 600 : 120;
+          const pts = e.kind==="big" ? 1000 : (e.kind==="stop" ? 300 : 120);
           S.score += pts;
           if(e.kind === "big") items.push({x:e.x,y:e.y,vy:1.5,kind:"P",big:true});
           else if(Math.random() < 0.28) items.push({x:e.x,y:e.y,vy:1.6,kind:"P"});
@@ -1607,7 +1671,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
           clearBullets(true);
           addFx(mx, my, 3.2);
           banner = { text:"露米娅 退场", sub:"……还会再来的", t:0, dur:100 };
-          stage.phase = "wave2"; stage.t = 0;
+          stage.phase = "wave2"; stage.t = 0; stage.si = 0;
           setTimeout(function(){ startDialog(DLG_MID_B, null); }, 900);
         } else {
           boss.hp = 0;
@@ -1662,7 +1726,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       }
       if(!hit){
         for(const e of enemies){
-          const er = e.kind==="big" ? 26 : 18;
+          const er = e.kind==="big" ? 26 : (e.kind==="stop" ? 20 : 18);
           if(Math.hypot(s.x-e.x, s.y-e.y) < er){ e.hp -= s.dmg; e.hitFlash = 3; sfx("damage", 0.09, 45); hit=true; break; }
         }
       }
@@ -1802,7 +1866,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     ctx.fill();
   }
 
-  const FAIRY_SPR = { fairy:"fairy_red", big:"fairy_yellow" };
+  const FAIRY_SPR = { fairy:"fairy_red", stop:"fairy_blue", big:"fairy_yellow" };
   function drawFairy(e){
     const key = FAIRY_SPR[e.kind] || "fairy_blue";
     const size = e.kind === "big" ? 54 : 40;
@@ -2960,7 +3024,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
     S.mode = "menu";
   }
   document.documentElement.setAttribute("data-game", "ok");
-  window.__dbg = function(){ return { mode:S.mode, phase: stage ? stage.phase : null, t: stage ? stage.t : -1, frame: S.frame, dlg: dlg ? dlg.i : -1, auto: !!S.autoDialog }; };
+  window.__dbg = function(){ return { mode:S.mode, phase: stage ? stage.phase : null, t: stage ? stage.t : -1, si: stage ? stage.si : -1, frame: S.frame, dlg: dlg ? dlg.i : -1, auto: !!S.autoDialog, enemies: enemies.length, bullets: bullets.length, boss: !!boss }; };
   // 素材加载状态（调试用）：data-img="已加载/总数"
   setTimeout(function(){
     var all = [];
