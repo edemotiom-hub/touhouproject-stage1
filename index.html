@@ -582,7 +582,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
   let bullets=[], shots=[], enemies=[], items=[], particles=[], boss=null, spellBanner=0, bossWarn=0, fx=[];
   let banner=null, popups=[], barrier=null, spellCut=null, beams=[], bombFx=null, orbs=[];
   let stage = null;
-  const STAGE_WAVE1 = 2650, STAGE_WAVE2 = 1700;
+  const STAGE_WAVE1 = 5320, STAGE_WAVE2 = 2650;
   const MAX_BOMBS = 2;
   const MAX_POWER = 8;            // 灵力上限（原作 128 档的简化）
   function powerStage(){
@@ -926,88 +926,66 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
                     vy:1.5, amp:16, freq:.03, vx:0, stopY:170, volleys:0, stopped:false});
     } else {
       enemies.push({kind:"fairy", x, y:-20, hp:12, maxhp:12, t:t, phase:phase,
-                    vy:1.6, amp:22, freq:.03, vx: o.vx || 0});
+                    vy:1.6, amp:22, freq:.03, vx: o.vx || 0, shot: o.shot || "blue3"});
     }
   }
 
   // 编队
   function spawnFormation(kind, cx){
-    if(kind === "row3"){
-      spawnFairy("fairy", cx - 80, -20);
-      spawnFairy("fairy", cx,       0);
-      spawnFairy("fairy", cx + 80, -20);
-    } else if(kind === "row5"){
-      for(let i=0;i<5;i++){
-        const k = i - 2;
-        spawnFairy("fairy", cx + k*62, -Math.abs(k)*16);
-      }
-    } else if(kind === "vee5"){
-      const seq = [-2,2,-1,1,0];
-      for(const k of seq) spawnFairy("fairy", cx + k*58, -Math.abs(k)*30);
-    } else if(kind === "sweepL"){
-      for(let i=0;i<4;i++) spawnFairy("fairy", -26, -60 - i*34, 0, {vx:1.7});
-    } else if(kind === "sweepR"){
-      for(let i=0;i<4;i++) spawnFairy("fairy", W + 26, -60 - i*34, 0, {vx:-1.7});
-    } else if(kind === "stop3"){
-      spawnFairy("stop", cx - 90, -18);
-      spawnFairy("stop", cx,       0);
-      spawnFairy("stop", cx + 90, -18);
+    if(kind === "blueV5"){
+      const seq = [-2,-1,0,1,2];
+      for(const k of seq) spawnFairy("fairy", cx + k*58, -Math.abs(k)*26, 0, {shot:"blue3"});
+    } else if(kind === "blueRow5"){
+      for(let i=0;i<5;i++) spawnFairy("fairy", cx - 124 + i*62, -Math.abs(i-2)*14, 0, {shot:"blue3"});
+    } else if(kind === "pinkRow4"){
+      for(let i=0;i<4;i++) spawnFairy("fairy", cx - 96 + i*64, -i*18, 0, {shot:"pink1"});
+    } else if(kind === "redRow5"){
+      for(let i=0;i<5;i++) spawnFairy("fairy", cx - 124 + i*62, -Math.abs(i-2)*16, 0, {shot:"red5"});
+    } else if(kind === "diagL"){
+      for(let i=0;i<6;i++) spawnFairy("fairy", cx - 150 + i*60, -40 - i*34, 0, {shot:"blue3"});
+    } else if(kind === "diagR"){
+      for(let i=0;i<6;i++) spawnFairy("fairy", cx + 150 - i*60, -40 - i*34, 0, {shot:"pink1"});
+    } else if(kind === "sideL"){
+      for(let i=0;i<5;i++) spawnFairy("fairy", -26, -60 - i*32, 0, {vx:1.7, shot:"blue3"});
+    } else if(kind === "sideR"){
+      for(let i=0;i<5;i++) spawnFairy("fairy", W + 26, -60 - i*32, 0, {vx:-1.7, shot:"red5"});
     } else if(kind === "big"){
       spawnFairy("big", cx);
+    } else if(kind === "bigPair"){
+      spawnFairy("big", cx);
+      spawnFairy("fairy", cx - 110, -60, 0, {shot:"blue3"});
+      spawnFairy("fairy", cx + 110, -60, 0, {shot:"red5"});
     }
   }
 
-  // Lunatic 道中时间轴（帧 → 编队）
+  // 道中一时间轴（按参考视频 Normal 节奏，约 86 秒）
   const STAGE_SCRIPT = [
-    { t:  50, f:"row3",   x:0.30 },
-    { t: 120, f:"row3",   x:0.70 },
-    { t: 200, f:"vee5",   x:0.50 },
-    { t: 300, f:"sweepL", x:0    },
-    { t: 340, f:"sweepR", x:0    },
-    { t: 440, f:"stop3",  x:0.50 },
-    { t: 560, f:"row5",   x:0.50 },
-    { t: 660, f:"big",    x:0.28 },
-    { t: 720, f:"row3",   x:0.72 },
-    { t: 820, f:"sweepL", x:0    },
-    { t: 860, f:"sweepR", x:0    },
-    { t: 960, f:"vee5",   x:0.40 },
-    { t:1060, f:"stop3",  x:0.42 },
-    { t:1180, f:"big",    x:0.72 },
-    { t:1240, f:"row5",   x:0.58 },
-    { t:1350, f:"sweepL", x:0    },
-    { t:1390, f:"sweepR", x:0    },
-    { t:1500, f:"stop3",  x:0.55 },
-    { t:1630, f:"vee5",   x:0.30 },
-    { t:1730, f:"row3",   x:0.75 },
-    { t:1830, f:"big",    x:0.50 },
-    { t:1900, f:"sweepL", x:0    },
-    { t:1940, f:"sweepR", x:0    },
-    { t:2050, f:"row5",   x:0.45 },
-    { t:2170, f:"stop3",  x:0.65 },
-    { t:2300, f:"vee5",   x:0.55 },
-    { t:2420, f:"big",    x:0.38 },
-    { t:2500, f:"row5",   x:0.62 }
+    { t:  150, f:"blueV5",    x:0.50 },
+    { t:  520, f:"blueV5",    x:0.30 },
+    { t:  880, f:"pinkRow4",  x:0.70 },
+    { t: 1240, f:"redRow5",   x:0.50 },
+    { t: 1560, f:"sideL",     x:0    },
+    { t: 1920, f:"sideR",     x:0    },
+    { t: 2180, f:"big",       x:0.50 },
+    { t: 2540, f:"big",       x:0.30 },
+    { t: 2900, f:"pinkRow4",  x:0.45 },
+    { t: 3260, f:"redRow5",   x:0.60 },
+    { t: 3620, f:"blueV5",    x:0.50 },
+    { t: 3980, f:"bigPair",   x:0.50 },
+    { t: 4340, f:"sideL",     x:0    },
+    { t: 4700, f:"diagL",     x:0.5  },
+    { t: 5060, f:"blueRow5",  x:0.50 }
   ];
 
+  // 道中二时间轴（约 45 秒）
   const STAGE_SCRIPT2 = [
-    { t:  40, f:"sweepL", x:0    },
-    { t:  70, f:"sweepR", x:0    },
-    { t: 160, f:"vee5",   x:0.35 },
-    { t: 250, f:"stop3",  x:0.62 },
-    { t: 370, f:"big",    x:0.30 },
-    { t: 430, f:"row5",   x:0.55 },
-    { t: 540, f:"sweepL", x:0    },
-    { t: 580, f:"sweepR", x:0    },
-    { t: 690, f:"stop3",  x:0.45 },
-    { t: 810, f:"big",    x:0.72 },
-    { t: 870, f:"vee5",   x:0.60 },
-    { t: 990, f:"row5",   x:0.40 },
-    { t:1110, f:"sweepL", x:0    },
-    { t:1150, f:"sweepR", x:0    },
-    { t:1270, f:"stop3",  x:0.50 },
-    { t:1410, f:"big",    x:0.50 },
-    { t:1480, f:"vee5",   x:0.30 },
-    { t:1570, f:"row5",   x:0.70 }
+    { t:  120, f:"blueRow5",  x:0.35 },
+    { t:  480, f:"redRow5",   x:0.62 },
+    { t:  840, f:"pinkRow4",  x:0.45 },
+    { t: 1200, f:"big",       x:0.50 },
+    { t: 1560, f:"sideR",     x:0    },
+    { t: 1920, f:"blueV5",    x:0.62 },
+    { t: 2280, f:"bigPair",   x:0.45 }
   ];
 
   // 道中流程：小怪 → 清空弹幕 → 中 BOSS 从上降下 → 对话 → 打退 → 小怪 → 清空 → BOSS 降下 → 对话 → 决战
@@ -1595,7 +1573,7 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
           const n = isBig ? 20 : 8;
           const sp = isBig ? 1.9 : 2.2;
           const col = isBig
-            ? (e.volleys === 0 ? "small_blue" : (e.volleys === 1 ? "rice" : "small"))
+            ? (e.volleys === 0 ? "rice" : (e.volleys === 1 ? "small_blue" : "small"))
             : "small_blue";
           ring(e.x, e.y, n, sp, col, a + e.volleys * 0.35);
           e.volleys++;
@@ -1608,9 +1586,12 @@ setTimeout(()=>document.querySelectorAll(".reveal").forEach(el=>el.classList.add
       if(e.amp) e.x += Math.sin(e.t*e.freq+e.phase)*1.1;
       e.x = clamp(e.x, -40, W + 40);
 
-      // 基础妖精：三发自机狙（Lunatic）
-      if(e.kind === "fairy" && e.t > 0 && e.t % 70 === 0){
-        aimedFan(e.x, e.y, 3, 2.6, "small", 0.16);
+      // 基础妖精：按编队类型开火
+      if(e.kind === "fairy" && e.t > 0){
+        const s = e.shot || "blue3";
+        if(s === "blue3" && e.t % 72 === 0)  aimedFan(e.x, e.y, 3, 2.4, "small_blue", 0.14);
+        if(s === "pink1" && e.t % 95 === 0)  aimed(e.x, e.y, 2.5, "star");
+        if(s === "red5"  && e.t % 84 === 0)  aimedFan(e.x, e.y, 5, 2.2, "small", 0.13);
       }
       if(e.y>H+30 || e.x<-60 || e.x>W+60 || e.hp<=0){
         if(e.hp<=0){
